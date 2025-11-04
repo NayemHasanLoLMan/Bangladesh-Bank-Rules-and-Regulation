@@ -106,10 +106,8 @@ def group_chunks_by_context(chunks, max_context_length=2500):
 
 def answer_question_with_context(query, context_groups, language):
     """Generate answer using OpenAI with provided context"""
-    if not context_groups:
-        if language == "bangla":
-            return "দুঃখিত, প্রশ্নের সাথে সম্পর্কিত পর্যাপ্ত তথ্য পাওয়া যায়নি।", []
-        return "Not enough relevant information found.", []
+    # Removed the early return for empty context_groups
+    # Now always proceed to build prompt, even if contexts are empty
 
     all_contexts = []
     sources_info = []
@@ -126,21 +124,22 @@ def answer_question_with_context(query, context_groups, language):
         all_contexts.append(context_header + group_text.strip())
         sources_info.extend([(chunk['source'], chunk['score']) for chunk in group])
 
-    full_context = "\n\n".join(all_contexts)
+    full_context = "\n\n".join(all_contexts) if all_contexts else "No relevant contexts found."
 
     # Language-specific prompts
     if language == "bangla":
-        prompt = f"""আপনি বাংলাদেশের ব্যাংক নিয়ম ও প্রবিধান বিষয়ে একজন বিশেষজ্ঞ পরামর্শদাতা। আপনার দায়িত্ব হলো ব্যাংকিং সংক্রান্ত বিষয়ে স্পষ্ট, ব্যবহারিক এবং নির্ভুল পরামর্শ প্রদান করা।
+        prompt = f"""আপনি 'বাংলাদেশ ব্যাংক'-এর বিধি ও প্রবিধানে বিশেষজ্ঞ একজন পরামর্শদাতা। আপনার ভূমিকা হলো ব্যাংকিং-সম্পর্কিত বিষয়ে স্পষ্ট, ব্যবহারিক এবং নির্ভুল দিকনির্দেশনা প্রদান করা। 'বাংলাদেশ ব্যাংক'-এর ব্যাংকিং প্রবিধানের আওতার মধ্যেই থাকুন।
 
         নির্দেশনা:
         1. সমস্ত প্রদত্ত প্রেক্ষাপট (কনটেক্সট) মনোযোগসহ বিশ্লেষণ করুন এবং নিয়ম ও প্রেক্ষাপট বুঝে সর্বপ্রথম সঠিক, সংক্ষিপ্ত ও সরাসরি উত্তর বা সমাধান দিন; প্রয়োজনে পরে ব্যাখ্যা করুন। (অনুমান করবেন না)
         2. প্রাসঙ্গিক হলে একাধিক প্রসঙ্গ থেকে তথ্য ব্যবহার করুন
-        3. শুধুমাত্র প্রদত্ত প্রসঙ্গের উপর ভিত্তি করে একটি বিস্তৃত উত্তর প্রদান করুন, এবং উত্সগুলির রেফারেন্স প্রদান করুন (সম্ভব হলে নিয়মের নম্বর, বিভাগ নম্বর, প্রকাশের তারিখ ইত্যাদি প্রদান করুন)
-        4. প্রসঙ্গ এবং এটি কী বোঝায় তা বুঝুন এবং সর্বোত্তম সম্ভাব্য উত্তর প্রদান করুন
+        3. শুধুমাত্র প্রদত্ত প্রসঙ্গের উপর ভিত্তি করে একটি বিস্তৃত উত্তর প্রদান করুন
+        4. প্রসঙ্গ এবং এটি কী বোঝায় তা বুঝুন এবং সর্বোত্তম সম্ভাব্য উত্তর প্রদান করুন, এবং উত্সগুলির রেফারেন্স প্রদান করুন (সম্ভব হলে নিয়মের নম্বর, বিভাগ নম্বর, প্রকাশের তারিখ ইত্যাদি প্রদান করুন, পিডিএফ এবং পৃষ্ঠা নম্বর দেবেন না)
         5. প্রসঙ্গে পর্যাপ্ত তথ্য না থাকলে, এটি স্পষ্টভাবে বলুন
         6. আপনার প্রতিক্রিয়ায় সুনির্দিষ্ট এবং বিস্তারিত হন
         7. সবসময় বাংলায় উত্তর দিন
         8. সঠিক মার্কডাউন ফরম্যাটে উত্তর দিন
+        9. একজন পেশাদার পরামর্শদাতা হিসেবে শুভেচ্ছা এবং সাধারণ প্রশ্নের উত্তর দিন, যিনি সহায়ক, বিনয়ী এবং জ্ঞানী, কিন্তু 'বাংলাদেশ ব্যাংক'-এর ব্যাংকিং প্রবিধানের বাইরে যাবেন না।
 
         নথি থেকে প্রসঙ্গ:
         {full_context}
@@ -151,17 +150,18 @@ def answer_question_with_context(query, context_groups, language):
 
         উত্তর:"""
     else:
-        prompt = f"""You are an expert consultant specializing in Bangladesh banks' rules and regulations. Your role is to provide clear, practical, and accurate guidance on banking-related matters.
+        prompt = f"""You are an expert consultant specializing in "Bangladesh banks" rules and regulations. Your role is to provide clear, practical, and accurate guidance on banking-related matters. Stay within the scope of banking regulations in "Bangladesh Bank".
 
         INSTRUCTIONS:
         1. Analyze all the provided contexts carefully and give the accurate short direct answer or solution first by understanding the rules and context then explain if needed. (don't speculate)
         2. Use information from multiple contexts when relevant
-        3. Provide a comprehensive answer based only on the given contexts, and provide references to the sources (Porvide rules no. section no. date published etc. if possible)
+        3. Provide a comprehensive answer based only on the given contexts, and provide references to the sources (Porvide rules no. section no. date published etc. if possible, Dont give pdf and page no.) 
         4. Understand the context and what it implies to provide the best possible answer
         5. If contexts don't contain enough information, say so clearly
         6. Be specific and detailed in your response
         7. Always respond in English
         8. Answer in proper markdown format
+        
 
         CONTEXTS FROM DOCUMENT:
         {full_context}
@@ -174,7 +174,7 @@ def answer_question_with_context(query, context_groups, language):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}
@@ -196,20 +196,15 @@ def get_answer(query, language):
     # Search for relevant chunks
     relevant_chunks = search_knowledge_base(query, top_k=10)
 
-    if not relevant_chunks:
-        if language == "bangla":
-            return "দুঃখিত, প্রশ্নের সাথে সম্পর্কিত কোনো তথ্য পাওয়া যায়নি।", []
-        return "No relevant answer found for the given question.", []
-
     print(f"Found {len(relevant_chunks)} relevant chunks")
 
-    # Group chunks by context
+    # Group chunks by context (even if empty)
     context_groups = group_chunks_by_context(relevant_chunks, max_context_length=2500)
 
     context_groups = context_groups[:5]
     print(f"Grouped into {len(context_groups)} context groups")
 
-    # Generate answer
+    # Always generate answer via LLM, even with empty context
     answer, sources = answer_question_with_context(query, context_groups, language)
 
     return answer, sources
@@ -233,7 +228,7 @@ def get_consultation(text_input, language):
 if __name__ == "__main__":
 
     result = get_consultation(
-        text_input="What regulation for Bank Resolution?",
+        text_input="tell me what is the Guidelines on Internal  Credit  Risk  Rating  System  for  Banks",
         language="english"
     )
     print(f"\nAnswer:\n{result['answer']}")
